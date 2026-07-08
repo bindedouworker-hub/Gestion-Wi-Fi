@@ -77,10 +77,12 @@ services:
       retries: 3
     restart: unless-stopped
 
-  cloudflared:
-    image: cloudflare/cloudflared:latest
+  ngrok:
+    image: ngrok/ngrok:latest
     container_name: advens_tunnel
-    command: tunnel --no-autoupdate --url http://nginx
+    environment:
+      NGROK_AUTHTOKEN: ${NGROK_AUTHTOKEN}
+    command: http nginx:80 --url=${NGROK_DOMAIN}
     depends_on:
       nginx:
         condition: service_healthy
