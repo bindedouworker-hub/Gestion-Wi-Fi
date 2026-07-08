@@ -141,6 +141,17 @@ export default function SettingsPage() {
     }
   };
 
+  const deleteST = async (id: number) => {
+    if (!confirm('Supprimer ce type d\'abonnement ?')) return;
+    try {
+      await api.delete(`/api/tickets/subscription-types/${id}`);
+      addToast('Type d\'abonnement supprimé', 'success');
+      loadData();
+    } catch (err: any) {
+      addToast(err.response?.data?.detail || 'Erreur', 'error');
+    }
+  };
+
   return (
     <div>
       <div className="mb-6">
@@ -256,11 +267,16 @@ export default function SettingsPage() {
                       {st.duration_hours}h — {new Intl.NumberFormat('fr-FR').format(st.price)} FCFA
                     </span>
                   </div>
-                  <button className="btn btn-ghost btn-sm" onClick={() => {
-                    setEditStId(st.id); setStName(st.name); setStHours(String(st.duration_hours)); setStPrice(String(st.price)); setShowST(true);
-                  }}>
-                    <Edit size={14} />
-                  </button>
+                  <div className="flex gap-2">
+                    <button className="btn btn-ghost btn-sm" onClick={() => {
+                      setEditStId(st.id); setStName(st.name); setStHours(String(st.duration_hours)); setStPrice(String(st.price)); setShowST(true);
+                    }}>
+                      <Edit size={14} />
+                    </button>
+                    <button className="btn btn-ghost btn-sm" style={{ color: 'var(--danger)' }} onClick={() => deleteST(st.id)} title="Supprimer">
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>

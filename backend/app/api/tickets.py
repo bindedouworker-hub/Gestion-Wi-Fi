@@ -76,6 +76,38 @@ def update_subscription_type(
     return SubscriptionTypeResponse.model_validate(sub_type)
 
 
+@router.delete("/subscription-types/{type_id}", status_code=204)
+def delete_subscription_type(
+    type_id: int,
+    admin: User = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    """Delete a subscription type (admin only)."""
+    sub_type = db.query(SubscriptionType).filter(SubscriptionType.id == type_id).first()
+    if not sub_type:
+        raise HTTPException(status_code=404, detail="Type d'abonnement introuvable")
+
+    # Check for references in other tables
+    from app.models.batch import Batch
+    from app.models.ticket import Ticket
+    from app.models.resupply import ResupplyRequest
+
+    has_batches = db.query(Batch).filter(Batch.subscription_type_id == type_id).first() is not None
+    has_tickets = db.query(Ticket).filter(Ticket.subscription_type_id == type_id).first() is not None
+    has_resupplies = db.query(ResupplyRequest).filter(ResupplyRequest.subscription_type_id == type_id).first() is not None
+
+    if has_batches or has_tickets or has_resupplies:
+        raise HTTPException(
+            status_code=400,
+            detail="Impossible de supprimer ce type d'abonnement car il contient des données historiques. Vous pouvez le désactiver pour le masquer."
+        )
+
+    db.delete(sub_type)
+    db.commit()
+    return None
+
+
+
 # --- Batches ---
 @router.get("/batches", response_model=list[BatchResponse])
 def list_batches(
