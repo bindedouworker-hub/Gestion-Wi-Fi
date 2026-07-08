@@ -118,16 +118,6 @@ wifi/
 - Protection CORS
 - Journal d'audit
 
-## 📊 Types d'abonnement par défaut
-
-| Nom | Durée | Prix |
-|-----|-------|------|
-| 1 Heure | 1h | 200 FCFA |
-| 3 Heures | 3h | 500 FCFA |
-| 24 Heures | 24h | 1 000 FCFA |
-| 7 Jours | 168h | 3 000 FCFA |
-| 30 Jours | 720h | 10 000 FCFA |
-
 ---
 
 **Développé par Jackson Dje pour Adven's Center**
