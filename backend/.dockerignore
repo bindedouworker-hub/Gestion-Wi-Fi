@@ -1,0 +1,15 @@
+__pycache__
+*.pyc
+*.pyo
+*.egg-info
+.env
+.git
+.gitignore
+.venv
+venv
+node_modules
+*.log
+.pytest_cache
+.coverage
+uploads/*
+!uploads/.gitkeep

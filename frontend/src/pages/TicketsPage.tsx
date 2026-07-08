@@ -1,0 +1,336 @@
+/* ============================================================
+   Tickets Page — Import batches, view/search tickets
+   ============================================================ */
+
+import { useEffect, useState, type FormEvent } from 'react';
+import { Package, Search, Plus, Upload, X } from 'lucide-react';
+import api from '../lib/api';
+import { useAuthStore } from '../store/authStore';
+import type { Ticket, Batch, SubscriptionType, UserWithStats } from '../types';
+
+export default function TicketsPage() {
+  const { user, addToast } = useAuthStore();
+  const isAdmin = user?.role === 'admin';
+
+  const [tickets, setTickets] = useState<Ticket[]>([]);
+  const [batches, setBatches] = useState<Batch[]>([]);
+  const [subTypes, setSubTypes] = useState<SubscriptionType[]>([]);
+  const [vendors, setVendors] = useState<UserWithStats[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [searchCode, setSearchCode] = useState('');
+  const [filterStatus, setFilterStatus] = useState('');
+  const [filterType, setFilterType] = useState('');
+
+  // Import modal
+  const [showImport, setShowImport] = useState(false);
+  const [importRef, setImportRef] = useState('');
+  const [importTypeId, setImportTypeId] = useState('');
+  const [importCodes, setImportCodes] = useState('');
+  const [importNotes, setImportNotes] = useState('');
+  const [importing, setImporting] = useState(false);
+
+  // Assign modal
+  const [showAssign, setShowAssign] = useState(false);
+  const [assignVendorId, setAssignVendorId] = useState('');
+  const [assignTypeId, setAssignTypeId] = useState('');
+  const [assignQty, setAssignQty] = useState('');
+
+  useEffect(() => {
+    loadData();
+  }, [filterStatus, filterType]);
+
+  const loadData = async () => {
+    try {
+      const params = new URLSearchParams();
+      if (filterStatus) params.set('status', filterStatus);
+      if (filterType) params.set('subscription_type_id', filterType);
+
+      const [ticketsRes, typesRes] = await Promise.all([
+        api.get(`/api/tickets/?${params}`),
+        api.get('/api/tickets/subscription-types'),
+      ]);
+      setTickets(ticketsRes.data);
+      setSubTypes(typesRes.data);
+
+      if (isAdmin) {
+        const [batchesRes, vendorsRes] = await Promise.all([
+          api.get('/api/tickets/batches'),
+          api.get('/api/users/?role=vendor'),
+        ]);
+        setBatches(batchesRes.data);
+        setVendors(vendorsRes.data);
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSearch = async () => {
+    if (!searchCode.trim()) return loadData();
+    try {
+      const res = await api.get(`/api/tickets/search?code=${searchCode.trim()}`);
+      setTickets([res.data]);
+    } catch {
+      addToast('Ticket introuvable', 'error');
+    }
+  };
+
+  const handleImport = async (e: FormEvent) => {
+    e.preventDefault();
+    setImporting(true);
+    try {
+      const codes = importCodes.split(/[\n,;]+/).map(c => c.trim()).filter(Boolean);
+      const res = await api.post('/api/tickets/batches', {
+        reference: importRef,
+        subscription_type_id: Number(importTypeId),
+        codes,
+        notes: importNotes || null,
+      });
+      addToast(`${res.data.imported} tickets importés ! ${res.data.duplicate_count} doublons rejetés.`, 'success');
+      setShowImport(false);
+      setImportRef(''); setImportTypeId(''); setImportCodes(''); setImportNotes('');
+      loadData();
+    } catch (err: any) {
+      addToast(err.response?.data?.detail || 'Erreur lors de l\'import', 'error');
+    } finally {
+      setImporting(false);
+    }
+  };
+
+  const handleBulkAssign = async (e: FormEvent) => {
+    e.preventDefault();
+    try {
+      const res = await api.post('/api/tickets/bulk-assign', {
+        vendor_id: Number(assignVendorId),
+        subscription_type_id: Number(assignTypeId),
+        quantity: Number(assignQty),
+      });
+      addToast(res.data.message, 'success');
+      setShowAssign(false);
+      setAssignVendorId(''); setAssignTypeId(''); setAssignQty('');
+      loadData();
+    } catch (err: any) {
+      addToast(err.response?.data?.detail || 'Erreur', 'error');
+    }
+  };
+
+  const statusLabels: Record<string, string> = {
+    available: 'Disponible',
+    assigned: 'Attribué',
+    sold: 'Vendu',
+  };
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h2 style={{ fontSize: '1.4rem', fontWeight: 800 }}>Tickets</h2>
+          <p className="text-muted text-sm">
+            {isAdmin ? 'Gérer les lots et tickets Wi-Fi' : 'Consulter votre stock de tickets'}
+          </p>
+        </div>
+        {isAdmin && (
+          <div className="flex gap-2">
+            <button className="btn btn-ghost" onClick={() => setShowAssign(true)}>
+              <Package size={16} /> Attribuer
+            </button>
+            <button className="btn btn-primary" onClick={() => setShowImport(true)}>
+              <Upload size={16} /> Importer un lot
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* Filters */}
+      <div className="card mb-4" style={{ padding: '16px 20px' }}>
+        <div className="flex gap-3" style={{ flexWrap: 'wrap' }}>
+          <div style={{ flex: '1 1 200px', display: 'flex', gap: '8px' }}>
+            <input
+              className="form-input"
+              placeholder="Rechercher un code..."
+              value={searchCode}
+              onChange={(e) => setSearchCode(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+            />
+            <button className="btn btn-ghost btn-icon" onClick={handleSearch}>
+              <Search size={18} />
+            </button>
+          </div>
+          <select className="form-select" value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} style={{ width: '160px' }}>
+            <option value="">Tous les statuts</option>
+            <option value="available">Disponible</option>
+            <option value="assigned">Attribué</option>
+            <option value="sold">Vendu</option>
+          </select>
+          <select className="form-select" value={filterType} onChange={(e) => setFilterType(e.target.value)} style={{ width: '160px' }}>
+            <option value="">Tous les types</option>
+            {subTypes.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+          </select>
+        </div>
+      </div>
+
+      {/* Batches (admin) */}
+      {isAdmin && batches.length > 0 && (
+        <div className="data-table-container mb-4">
+          <div className="table-header">
+            <h3>Lots importés</h3>
+            <span className="text-muted text-sm">{batches.length} lot(s)</span>
+          </div>
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>Référence</th>
+                <th>Type</th>
+                <th>Tickets</th>
+                <th>Importé par</th>
+                <th>Date</th>
+              </tr>
+            </thead>
+            <tbody>
+              {batches.slice(0, 5).map((b) => (
+                <tr key={b.id}>
+                  <td style={{ fontWeight: 600 }}>{b.reference}</td>
+                  <td>{b.subscription_type?.name}</td>
+                  <td>{b.total_tickets}</td>
+                  <td>{b.admin_name}</td>
+                  <td>{new Date(b.created_at).toLocaleDateString('fr-FR')}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* Tickets Table */}
+      <div className="data-table-container">
+        <div className="table-header">
+          <h3>Liste des tickets</h3>
+          <span className="text-muted text-sm">{tickets.length} ticket(s)</span>
+        </div>
+        {tickets.length > 0 ? (
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>Code</th>
+                <th>Type</th>
+                <th>Statut</th>
+                <th>Lot</th>
+                {isAdmin && <th>Attribué à</th>}
+                <th>Date</th>
+              </tr>
+            </thead>
+            <tbody>
+              {tickets.map((t) => (
+                <tr key={t.id}>
+                  <td style={{ fontFamily: 'monospace', fontWeight: 600 }}>{t.code}</td>
+                  <td>{t.subscription_type?.name}</td>
+                  <td>
+                    <span className={`badge badge-${t.status}`}>
+                      {statusLabels[t.status] || t.status}
+                    </span>
+                  </td>
+                  <td>{t.batch_reference}</td>
+                  {isAdmin && <td>{t.assigned_user_name || '—'}</td>}
+                  <td>{t.assigned_at ? new Date(t.assigned_at).toLocaleDateString('fr-FR') : '—'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        ) : (
+          <div className="empty-state">
+            <div className="empty-icon">📋</div>
+            <h4>Aucun ticket trouvé</h4>
+            <p>{isAdmin ? 'Importez un lot pour commencer' : 'Demandez un réapprovisionnement'}</p>
+          </div>
+        )}
+      </div>
+
+      {/* Import Modal */}
+      {showImport && (
+        <div className="modal-overlay" onClick={() => setShowImport(false)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>Importer un lot de tickets</h3>
+              <button className="btn btn-ghost btn-icon" onClick={() => setShowImport(false)}>
+                <X size={18} />
+              </button>
+            </div>
+            <form onSubmit={handleImport}>
+              <div className="form-group">
+                <label className="form-label">Référence du lot *</label>
+                <input className="form-input" required value={importRef} onChange={(e) => setImportRef(e.target.value)} placeholder="ex: LOT-2024-001" />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Type d'abonnement *</label>
+                <select className="form-select" required value={importTypeId} onChange={(e) => setImportTypeId(e.target.value)}>
+                  <option value="">Sélectionner...</option>
+                  {subTypes.filter(t => t.is_active).map(t => (
+                    <option key={t.id} value={t.id}>{t.name} — {t.price} FCFA</option>
+                  ))}
+                </select>
+              </div>
+              <div className="form-group">
+                <label className="form-label">Codes Wi-Fi * (un par ligne ou séparés par virgule)</label>
+                <textarea className="form-textarea" required value={importCodes} onChange={(e) => setImportCodes(e.target.value)} rows={6} placeholder="ABC123&#10;DEF456&#10;GHI789" />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Notes (optionnel)</label>
+                <input className="form-input" value={importNotes} onChange={(e) => setImportNotes(e.target.value)} placeholder="Remarques sur ce lot..." />
+              </div>
+              <div className="modal-footer">
+                <button type="button" className="btn btn-ghost" onClick={() => setShowImport(false)}>Annuler</button>
+                <button type="submit" className="btn btn-primary" disabled={importing}>
+                  {importing ? 'Import...' : 'Importer'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Assign Modal */}
+      {showAssign && (
+        <div className="modal-overlay" onClick={() => setShowAssign(false)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>Attribuer des tickets</h3>
+              <button className="btn btn-ghost btn-icon" onClick={() => setShowAssign(false)}>
+                <X size={18} />
+              </button>
+            </div>
+            <form onSubmit={handleBulkAssign}>
+              <div className="form-group">
+                <label className="form-label">Vendeur *</label>
+                <select className="form-select" required value={assignVendorId} onChange={(e) => setAssignVendorId(e.target.value)}>
+                  <option value="">Sélectionner...</option>
+                  {vendors.filter(v => v.is_active).map(v => (
+                    <option key={v.id} value={v.id}>{v.full_name}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="form-group">
+                <label className="form-label">Type d'abonnement *</label>
+                <select className="form-select" required value={assignTypeId} onChange={(e) => setAssignTypeId(e.target.value)}>
+                  <option value="">Sélectionner...</option>
+                  {subTypes.filter(t => t.is_active).map(t => (
+                    <option key={t.id} value={t.id}>{t.name} — {t.price} FCFA</option>
+                  ))}
+                </select>
+              </div>
+              <div className="form-group">
+                <label className="form-label">Quantité *</label>
+                <input type="number" className="form-input" required min={1} value={assignQty} onChange={(e) => setAssignQty(e.target.value)} placeholder="Nombre de tickets" />
+              </div>
+              <div className="modal-footer">
+                <button type="button" className="btn btn-ghost" onClick={() => setShowAssign(false)}>Annuler</button>
+                <button type="submit" className="btn btn-accent">Attribuer</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
