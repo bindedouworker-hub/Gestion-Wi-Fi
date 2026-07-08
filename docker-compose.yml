@@ -80,8 +80,7 @@ services:
   cloudflared:
     image: cloudflare/cloudflared:latest
     container_name: advens_tunnel
-    command: tunnel --no-autoupdate run --token ${CLOUDFLARE_TUNNEL_TOKEN}
-    env_file: .env
+    command: tunnel --no-autoupdate --url http://nginx
     depends_on:
       nginx:
         condition: service_healthy
