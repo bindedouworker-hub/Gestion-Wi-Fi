@@ -25,6 +25,7 @@ export default function TicketsPage() {
   const [showImport, setShowImport] = useState(false);
   const [importRef, setImportRef] = useState('');
   const [importTypeId, setImportTypeId] = useState('');
+  const [importPrice, setImportPrice] = useState('');
   const [importCodes, setImportCodes] = useState('');
   const [importNotes, setImportNotes] = useState('');
   const [importing, setImporting] = useState(false);
@@ -90,7 +91,7 @@ export default function TicketsPage() {
       });
       addToast(`${res.data.imported} tickets importés ! ${res.data.duplicate_count} doublons rejetés.`, 'success');
       setShowImport(false);
-      setImportRef(''); setImportTypeId(''); setImportCodes(''); setImportNotes('');
+      setImportRef(''); setImportTypeId(''); setImportPrice(''); setImportCodes(''); setImportNotes('');
       loadData();
     } catch (err: any) {
       addToast(err.response?.data?.detail || 'Erreur lors de l\'import', 'error');
@@ -250,39 +251,90 @@ export default function TicketsPage() {
       {/* Import Modal */}
       {showImport && (
         <div className="modal-overlay" onClick={() => setShowImport(false)}>
-          <div className="modal" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h3>Importer un lot de tickets</h3>
-              <button className="btn btn-ghost btn-icon" onClick={() => setShowImport(false)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '460px' }}>
+            <div className="modal-header" style={{ justifyContent: 'center', position: 'relative', marginBottom: '24px' }}>
+              <h3 style={{ fontSize: '1.25rem', fontWeight: 600 }}>Créer un lot de tickets</h3>
+              <button
+                type="button"
+                className="btn btn-ghost btn-icon"
+                onClick={() => setShowImport(false)}
+                style={{ position: 'absolute', right: '0px', top: '0px' }}
+              >
                 <X size={18} />
               </button>
             </div>
             <form onSubmit={handleImport}>
               <div className="form-group">
-                <label className="form-label">Référence du lot *</label>
-                <input className="form-input" required value={importRef} onChange={(e) => setImportRef(e.target.value)} placeholder="ex: LOT-2024-001" />
+                <label className="form-label">Nom du lot</label>
+                <input
+                  className="form-input"
+                  required
+                  value={importRef}
+                  onChange={(e) => setImportRef(e.target.value)}
+                  placeholder="Ex: Lot Juillet 2026"
+                />
               </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                <div className="form-group">
+                  <label className="form-label">Type d'abonnement</label>
+                  <select
+                    className="form-select"
+                    required
+                    value={importTypeId}
+                    onChange={(e) => {
+                      setImportTypeId(e.target.value);
+                      const selected = subTypes.find(t => t.id === Number(e.target.value));
+                      setImportPrice(selected ? `${new Intl.NumberFormat('fr-FR').format(selected.price)}` : '');
+                    }}
+                  >
+                    <option value="">Sélectionner</option>
+                    {subTypes.filter(t => t.is_active).map(t => (
+                      <option key={t.id} value={t.id}>{t.name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Prix unitaire (FCFA)</label>
+                  <input
+                    className="form-input"
+                    disabled
+                    value={importPrice}
+                    placeholder=""
+                    style={{ opacity: 0.8 }}
+                  />
+                </div>
+              </div>
+
               <div className="form-group">
-                <label className="form-label">Type d'abonnement *</label>
-                <select className="form-select" required value={importTypeId} onChange={(e) => setImportTypeId(e.target.value)}>
-                  <option value="">Sélectionner...</option>
-                  {subTypes.filter(t => t.is_active).map(t => (
-                    <option key={t.id} value={t.id}>{t.name} — {t.price} FCFA</option>
-                  ))}
-                </select>
+                <label className="form-label">Codes Wi-Fi (un par ligne)</label>
+                <textarea
+                  className="form-textarea"
+                  required
+                  value={importCodes}
+                  onChange={(e) => setImportCodes(e.target.value)}
+                  rows={6}
+                  placeholder="CODE001&#10;CODE002&#10;CODE003"
+                  style={{ fontFamily: 'monospace' }}
+                />
               </div>
-              <div className="form-group">
-                <label className="form-label">Codes Wi-Fi * (un par ligne ou séparés par virgule)</label>
-                <textarea className="form-textarea" required value={importCodes} onChange={(e) => setImportCodes(e.target.value)} rows={6} placeholder="ABC123&#10;DEF456&#10;GHI789" />
-              </div>
-              <div className="form-group">
-                <label className="form-label">Notes (optionnel)</label>
-                <input className="form-input" value={importNotes} onChange={(e) => setImportNotes(e.target.value)} placeholder="Remarques sur ce lot..." />
-              </div>
-              <div className="modal-footer">
-                <button type="button" className="btn btn-ghost" onClick={() => setShowImport(false)}>Annuler</button>
-                <button type="submit" className="btn btn-primary" disabled={importing}>
-                  {importing ? 'Import...' : 'Importer'}
+
+              <div style={{ marginTop: '24px' }}>
+                <button
+                  type="submit"
+                  className="btn btn-primary"
+                  style={{
+                    width: '100%',
+                    padding: '12px',
+                    fontSize: '1rem',
+                    fontWeight: 600,
+                    display: 'flex',
+                    justifyContent: 'center',
+                    alignItems: 'center',
+                  }}
+                  disabled={importing}
+                >
+                  {importing ? 'Création...' : 'Créer le lot'}
                 </button>
               </div>
             </form>
