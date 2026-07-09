@@ -5,7 +5,7 @@
 import { useEffect, useState } from 'react';
 import {
   Package, ShoppingCart, DollarSign, Banknote, Smartphone,
-  Clock, Users, BarChart3, TrendingUp, Ticket,
+  Clock, Users, BarChart3, TrendingUp, Ticket, Crown, UserCheck, CalendarDays, Zap
 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import api from '../lib/api';
@@ -178,6 +178,72 @@ export default function DashboardPage() {
           )}
         </div>
       </div>
+
+      {/* Detailed Statistics Section (Admin only) */}
+      {isAdmin && (
+        <div style={{ marginTop: '32px', marginBottom: '24px' }}>
+          <h3 style={{ fontSize: '1.2rem', fontWeight: 700, marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <TrendingUp size={20} /> Statistiques détaillées (Performances)
+          </h3>
+          <div className="stats-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))' }}>
+            {/* Top Client */}
+            <div className="stat-card">
+              <div className="stat-icon gold">
+                <Crown size={22} />
+              </div>
+              <div className="stat-info">
+                <h3>Meilleur client</h3>
+                <div className="stat-value" style={{ fontSize: '1.1rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={stats.top_client_name || 'Aucun'}>
+                  {stats.top_client_name || 'Aucun'}
+                </div>
+                <div className="text-muted text-sm">{stats.top_client_tickets} ticket(s) acheté(s)</div>
+              </div>
+            </div>
+
+            {/* Top Vendor */}
+            <div className="stat-card">
+              <div className="stat-icon purple">
+                <UserCheck size={22} />
+              </div>
+              <div className="stat-info">
+                <h3>Meilleur vendeur</h3>
+                <div className="stat-value" style={{ fontSize: '1.1rem' }}>
+                  {stats.top_vendor_name || 'Aucun'}
+                </div>
+                <div className="text-muted text-sm">{stats.top_vendor_tickets} ticket(s) vendu(s)</div>
+              </div>
+            </div>
+
+            {/* Top Subscription Type */}
+            <div className="stat-card">
+              <div className="stat-icon blue">
+                <Zap size={22} />
+              </div>
+              <div className="stat-info">
+                <h3>Forfait le plus vendu</h3>
+                <div className="stat-value" style={{ fontSize: '1.1rem' }}>
+                  {stats.top_subscription_type_name || 'Aucun'}
+                </div>
+                <div className="text-muted text-sm">{stats.top_subscription_type_tickets} vente(s)</div>
+              </div>
+            </div>
+
+            {/* Top Day */}
+            <div className="stat-card">
+              <div className="stat-icon red">
+                <CalendarDays size={22} />
+              </div>
+              <div className="stat-info">
+                <h3>Jour de forte affluence</h3>
+                <div className="stat-value" style={{ fontSize: '1.1rem' }}>
+                  {stats.top_day_name || 'Aucun'}
+                </div>
+                <div className="text-muted text-sm">{stats.top_day_tickets} ticket(s) acheté(s)</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

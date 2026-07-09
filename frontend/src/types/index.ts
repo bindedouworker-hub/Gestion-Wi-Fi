@@ -106,6 +106,14 @@ export interface DashboardStats {
   total_vendors: number;
   total_tickets: number;
   total_sold: number;
+  top_client_name?: string | null;
+  top_client_tickets?: number;
+  top_vendor_name?: string | null;
+  top_vendor_tickets?: number;
+  top_subscription_type_name?: string | null;
+  top_subscription_type_tickets?: number;
+  top_day_name?: string | null;
+  top_day_tickets?: number;
 }
 
 export interface LoginResponse {

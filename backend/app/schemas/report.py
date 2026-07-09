@@ -24,6 +24,16 @@ class DashboardStats(BaseModel):
     total_tickets: int = 0
     total_sold: int = 0
 
+    # Extra detailed stats (admin only)
+    top_client_name: str | None = None
+    top_client_tickets: int = 0
+    top_vendor_name: str | None = None
+    top_vendor_tickets: int = 0
+    top_subscription_type_name: str | None = None
+    top_subscription_type_tickets: int = 0
+    top_day_name: str | None = None
+    top_day_tickets: int = 0
+
 
 class PaymentMethodResponse(BaseModel):
     id: int
