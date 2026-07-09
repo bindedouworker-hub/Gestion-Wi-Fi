@@ -300,6 +300,39 @@ def search_ticket(
     return data
 
 
+@router.delete("/{ticket_id}", status_code=204)
+def delete_ticket(
+    ticket_id: int,
+    admin: User = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    """Delete a single ticket (admin only)."""
+    ticket = db.query(Ticket).filter(Ticket.id == ticket_id).first()
+    if not ticket:
+        raise HTTPException(status_code=404, detail="Ticket introuvable")
+
+    # Check if this ticket has been sold
+    if ticket.status == "sold":
+        raise HTTPException(
+            status_code=400,
+            detail="Impossible de supprimer ce ticket car il a déjà été vendu. Annulez la vente d'abord."
+        )
+
+    from app.utils.audit import log_action
+    log_action(
+        db=db,
+        user_id=admin.id,
+        action="ticket.delete",
+        entity_type="ticket",
+        entity_id=ticket_id,
+        details={"code": ticket.code, "subscription_type": ticket.subscription_type.name},
+    )
+
+    db.delete(ticket)
+    db.commit()
+    return None
+
+
 @router.post("/assign")
 def assign_tickets(
     data: TicketAssign,

@@ -128,6 +128,17 @@ export default function TicketsPage() {
     }
   };
 
+  const deleteTicket = async (id: number) => {
+    if (!confirm('Supprimer ce ticket ?')) return;
+    try {
+      await api.delete(`/api/tickets/${id}`);
+      addToast('Ticket supprimé avec succès', 'success');
+      loadData();
+    } catch (err: any) {
+      addToast(err.response?.data?.detail || 'Erreur lors de la suppression', 'error');
+    }
+  };
+
   const statusLabels: Record<string, string> = {
     available: 'Disponible',
     assigned: 'Attribué',
@@ -242,6 +253,7 @@ export default function TicketsPage() {
                 <th>Lot</th>
                 {isAdmin && <th>Attribué à</th>}
                 <th>Date</th>
+                {isAdmin && <th style={{ textAlign: 'right' }}>Actions</th>}
               </tr>
             </thead>
             <tbody>
@@ -257,6 +269,20 @@ export default function TicketsPage() {
                   <td>{t.batch_reference}</td>
                   {isAdmin && <td>{t.assigned_user_name || '—'}</td>}
                   <td>{t.assigned_at ? new Date(t.assigned_at).toLocaleDateString('fr-FR') : '—'}</td>
+                  {isAdmin && (
+                    <td style={{ textAlign: 'right' }}>
+                      {t.status !== 'sold' && (
+                        <button
+                          className="btn btn-ghost btn-sm"
+                          style={{ color: 'var(--danger)', padding: '4px' }}
+                          onClick={() => deleteTicket(t.id)}
+                          title="Supprimer le ticket"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      )}
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>
