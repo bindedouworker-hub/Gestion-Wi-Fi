@@ -63,3 +63,18 @@ class LoginResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
     user: UserResponse
+
+
+class AuditLogResponse(BaseModel):
+    id: int
+    user_id: int
+    user_name: str | None = None
+    action: str
+    entity_type: str
+    entity_id: int | None = None
+    details: dict | None = None
+    ip_address: str | None = None
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+

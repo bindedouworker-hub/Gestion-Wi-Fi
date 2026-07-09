@@ -3,7 +3,7 @@
    ============================================================ */
 
 import { useEffect, useState, type FormEvent } from 'react';
-import { CreditCard, Plus, Edit, Trash2, Upload, X, Lock, Wifi } from 'lucide-react';
+import { CreditCard, Plus, Edit, Trash2, Upload, X, Lock, Wifi, History } from 'lucide-react';
 import api from '../lib/api';
 import { useAuthStore } from '../store/authStore';
 import type { PaymentMethod, SubscriptionType } from '../types';
@@ -16,6 +16,7 @@ export default function SettingsPage() {
 
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([]);
   const [subTypes, setSubTypes] = useState<SubscriptionType[]>([]);
+  const [auditLogs, setAuditLogs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   // Password change
@@ -39,12 +40,14 @@ export default function SettingsPage() {
 
   const loadData = async () => {
     try {
-      const [pmRes, stRes] = await Promise.all([
+      const [pmRes, stRes, auditRes] = await Promise.all([
         isAdmin ? api.get('/api/settings/payment-methods') : api.get('/api/settings/payment-methods/active'),
         api.get('/api/tickets/subscription-types'),
+        isAdmin ? api.get('/api/settings/audit-logs') : Promise.resolve({ data: [] }),
       ]);
       setPaymentMethods(pmRes.data);
       setSubTypes(stRes.data);
+      if (isAdmin) setAuditLogs(auditRes.data);
     } catch (err) { console.error(err); }
     finally { setLoading(false); }
   };
@@ -150,6 +153,47 @@ export default function SettingsPage() {
     } catch (err: any) {
       addToast(err.response?.data?.detail || 'Erreur', 'error');
     }
+  };
+
+  const getActionBadgeClass = (action: string) => {
+    if (action.startsWith('auth.')) return 'badge-inactive';
+    if (action.includes('.delete') || action.includes('cancel') || action.includes('reject')) return 'badge-inactive';
+    if (action.includes('.create') || action.includes('approve') || action.includes('login')) return 'badge-active';
+    return '';
+  };
+
+  const getActionLabel = (action: string) => {
+    const labels: Record<string, string> = {
+      'auth.login': 'Connexion',
+      'auth.change_password': 'Mot de passe modifié',
+      'subscription_type.create': 'Type créé',
+      'subscription_type.update': 'Type modifié',
+      'subscription_type.delete': 'Type supprimé',
+      'batch.create': 'Lot importé',
+      'batch.delete': 'Lot supprimé',
+      'tickets.assign': 'Attribué',
+      'tickets.bulk_assign': 'Attribué (FIFO)',
+      'resupply.request': 'Réappro. demandé',
+      'resupply.approve': 'Réappro. approuvé',
+      'resupply.reject': 'Réappro. rejeté',
+      'sale.create': 'Vente',
+      'sale.cancel': 'Annulé',
+    };
+    return labels[action] || action;
+  };
+
+  const formatDetails = (action: string, details: any) => {
+    if (!details) return '';
+    if (action === 'auth.login') return `Utilisateur : ${details.username} (${details.role})`;
+    if (action.startsWith('subscription_type.')) return `Type : ${details.name} (${details.price || ''} FCFA)`;
+    if (action === 'batch.create') return `Lot : ${details.reference} (${details.total_tickets} tickets)`;
+    if (action === 'batch.delete') return `Lot : ${details.reference}`;
+    if (action.startsWith('tickets.')) return `Vendeur : ${details.vendor_name || ('ID: ' + details.entity_id)} (${details.count} tickets)`;
+    if (action === 'resupply.request') return `Type : ${details.subscription_type} (Qté : ${details.quantity})`;
+    if (action.startsWith('resupply.')) return `Vendeur : ${details.vendor_name} (Qté : ${details.quantity})`;
+    if (action === 'sale.create') return `Code : ${details.ticket_code} (Payé par : ${details.payment_method})`;
+    if (action === 'sale.cancel') return `Code : ${details.ticket_code} (Raison : ${details.reason || 'Non spécifiée'})`;
+    return JSON.stringify(details);
   };
 
   return (
@@ -279,6 +323,51 @@ export default function SettingsPage() {
                   </div>
                 </div>
               ))}
+            </div>
+          </div>
+        )}
+
+        {/* Audit Logs (admin only) */}
+        {isAdmin && (
+          <div className="card" style={{ maxWidth: '100%' }}>
+            <h3 style={{ fontWeight: 700, marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <History size={18} /> Historique des actions (Traçabilité)
+            </h3>
+            <div style={{ maxHeight: '400px', overflowY: 'auto' }}>
+              <table className="data-table" style={{ fontSize: '0.85rem' }}>
+                <thead>
+                  <tr>
+                    <th>Date</th>
+                    <th>Utilisateur</th>
+                    <th>Action</th>
+                    <th>Détails</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {auditLogs.length === 0 ? (
+                    <tr>
+                      <td colSpan={4} className="text-center text-muted" style={{ padding: '24px' }}>
+                        Aucune action enregistrée
+                      </td>
+                    </tr>
+                  ) : (
+                    auditLogs.map((log) => (
+                      <tr key={log.id}>
+                        <td>{new Date(log.created_at).toLocaleString('fr-FR')}</td>
+                        <td style={{ fontWeight: 600 }}>{log.user_name}</td>
+                        <td>
+                          <span className={`badge ${getActionBadgeClass(log.action)}`}>
+                            {getActionLabel(log.action)}
+                          </span>
+                        </td>
+                        <td className="text-muted">
+                          {formatDetails(log.action, log.details)}
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
             </div>
           </div>
         )}

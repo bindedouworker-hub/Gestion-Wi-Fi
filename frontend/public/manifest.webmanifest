@@ -1,0 +1,16 @@
+{
+  "short_name": "Adven's WiFi",
+  "name": "Adven's Manager — Gestion Wi-Fi",
+  "icons": [
+    {
+      "src": "favicon.svg",
+      "type": "image/svg+xml",
+      "sizes": "any"
+    }
+  ],
+  "start_url": "/",
+  "background_color": "#0b1120",
+  "theme_color": "#3b7df3",
+  "display": "standalone",
+  "orientation": "portrait"
+}

@@ -13,6 +13,7 @@ from app.core.dependencies import get_current_admin
 from app.models.user import User
 from app.models.payment_method import PaymentMethod
 from app.schemas.report import PaymentMethodCreate, PaymentMethodUpdate, PaymentMethodResponse
+from app.schemas.user import AuditLogResponse
 
 router = APIRouter(prefix="/api/settings", tags=["Settings"])
 settings = get_settings()
@@ -140,3 +141,20 @@ def list_active_payment_methods(
     """List active payment methods (no auth required for sale form)."""
     methods = db.query(PaymentMethod).filter(PaymentMethod.is_active == True).all()
     return [PaymentMethodResponse.model_validate(m) for m in methods]
+
+
+@router.get("/audit-logs", response_model=list[AuditLogResponse])
+def list_audit_logs(
+    admin: User = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    """List all audit logs for admin traceability."""
+    from app.models.audit_log import AuditLog
+    
+    logs = db.query(AuditLog).order_by(AuditLog.created_at.desc()).limit(200).all()
+    result = []
+    for log in logs:
+        data = AuditLogResponse.model_validate(log)
+        data.user_name = log.user.full_name if log.user else "Système"
+        result.append(data)
+    return result

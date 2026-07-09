@@ -34,6 +34,16 @@ def sell_ticket(
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
+    from app.utils.audit import log_action
+    log_action(
+        db=db,
+        user_id=current_user.id,
+        action="sale.create",
+        entity_type="sale",
+        entity_id=sale.id,
+        details={"ticket_code": sale.ticket.code, "amount": float(sale.amount), "payment_method": sale.payment_method},
+    )
+
     # Build response with extras
     response = SaleResponse.model_validate(sale)
     response.ticket_code = sale.ticket.code
@@ -112,6 +122,16 @@ def cancel(
         sale = cancel_sale(db, sale_id, admin.id, data.reason)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+    from app.utils.audit import log_action
+    log_action(
+        db=db,
+        user_id=admin.id,
+        action="sale.cancel",
+        entity_type="sale",
+        entity_id=sale.id,
+        details={"ticket_code": sale.ticket.code, "amount": float(sale.amount), "reason": data.reason},
+    )
 
     response = SaleResponse.model_validate(sale)
     response.ticket_code = sale.ticket.code

@@ -3,7 +3,7 @@
    ============================================================ */
 
 import { useEffect, useState, type FormEvent } from 'react';
-import { Package, Search, Plus, Upload, X } from 'lucide-react';
+import { Package, Search, Plus, Upload, X, Trash2 } from 'lucide-react';
 import api from '../lib/api';
 import { useAuthStore } from '../store/authStore';
 import type { Ticket, Batch, SubscriptionType, UserWithStats } from '../types';
@@ -117,6 +117,17 @@ export default function TicketsPage() {
     }
   };
 
+  const deleteBatch = async (id: number) => {
+    if (!confirm('Supprimer ce lot de tickets ? Cela supprimera TOUS les tickets non vendus associés.')) return;
+    try {
+      await api.delete(`/api/tickets/batches/${id}`);
+      addToast('Lot supprimé avec succès', 'success');
+      loadData();
+    } catch (err: any) {
+      addToast(err.response?.data?.detail || 'Erreur lors de la suppression', 'error');
+    }
+  };
+
   const statusLabels: Record<string, string> = {
     available: 'Disponible',
     assigned: 'Attribué',
@@ -187,16 +198,27 @@ export default function TicketsPage() {
                 <th>Tickets</th>
                 <th>Importé par</th>
                 <th>Date</th>
+                <th style={{ textAlign: 'right' }}>Actions</th>
               </tr>
             </thead>
             <tbody>
-              {batches.slice(0, 5).map((b) => (
+              {batches.map((b) => (
                 <tr key={b.id}>
                   <td style={{ fontWeight: 600 }}>{b.reference}</td>
                   <td>{b.subscription_type?.name}</td>
                   <td>{b.total_tickets}</td>
                   <td>{b.admin_name}</td>
                   <td>{new Date(b.created_at).toLocaleDateString('fr-FR')}</td>
+                  <td style={{ textAlign: 'right' }}>
+                    <button
+                      className="btn btn-ghost btn-sm"
+                      style={{ color: 'var(--danger)', padding: '4px' }}
+                      onClick={() => deleteBatch(b.id)}
+                      title="Supprimer le lot"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </td>
                 </tr>
               ))}
             </tbody>

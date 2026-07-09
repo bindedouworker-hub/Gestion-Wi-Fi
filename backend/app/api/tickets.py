@@ -47,6 +47,17 @@ def create_subscription_type(
     db.add(sub_type)
     db.commit()
     db.refresh(sub_type)
+
+    from app.utils.audit import log_action
+    log_action(
+        db=db,
+        user_id=admin.id,
+        action="subscription_type.create",
+        entity_type="subscription_type",
+        entity_id=sub_type.id,
+        details={"name": sub_type.name, "price": sub_type.price, "duration_hours": sub_type.duration_hours},
+    )
+
     return SubscriptionTypeResponse.model_validate(sub_type)
 
 
@@ -73,6 +84,17 @@ def update_subscription_type(
 
     db.commit()
     db.refresh(sub_type)
+
+    from app.utils.audit import log_action
+    log_action(
+        db=db,
+        user_id=admin.id,
+        action="subscription_type.update",
+        entity_type="subscription_type",
+        entity_id=sub_type.id,
+        details={"name": sub_type.name, "price": sub_type.price, "duration_hours": sub_type.duration_hours, "is_active": sub_type.is_active},
+    )
+
     return SubscriptionTypeResponse.model_validate(sub_type)
 
 
@@ -101,6 +123,16 @@ def delete_subscription_type(
             status_code=400,
             detail="Impossible de supprimer ce type d'abonnement car il contient des données historiques. Vous pouvez le désactiver pour le masquer."
         )
+
+    from app.utils.audit import log_action
+    log_action(
+        db=db,
+        user_id=admin.id,
+        action="subscription_type.delete",
+        entity_type="subscription_type",
+        entity_id=type_id,
+        details={"name": sub_type.name},
+    )
 
     db.delete(sub_type)
     db.commit()
@@ -148,12 +180,61 @@ def create_batch(
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
+    from app.utils.audit import log_action
+    log_action(
+        db=db,
+        user_id=admin.id,
+        action="batch.create",
+        entity_type="batch",
+        entity_id=batch.id,
+        details={"reference": batch.reference, "total_tickets": batch.total_tickets},
+    )
+
     return {
         "batch": BatchResponse.model_validate(batch),
         "imported": batch.total_tickets,
         "duplicates": duplicates,
         "duplicate_count": len(duplicates),
     }
+
+
+@router.delete("/batches/{batch_id}", status_code=204)
+def delete_batch(
+    batch_id: int,
+    admin: User = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    """Delete a batch and its tickets (admin only)."""
+    batch = db.query(Batch).filter(Batch.id == batch_id).first()
+    if not batch:
+        raise HTTPException(status_code=404, detail="Lot introuvable")
+
+    # Check if any tickets in this batch have been sold
+    from app.models.ticket import Ticket
+    sold_ticket = (
+        db.query(Ticket)
+        .filter(Ticket.batch_id == batch_id, Ticket.status == "sold")
+        .first()
+    )
+    if sold_ticket:
+        raise HTTPException(
+            status_code=400,
+            detail="Impossible de supprimer ce lot car certains de ses tickets ont déjà été vendus. Annulez les ventes d'abord."
+        )
+
+    from app.utils.audit import log_action
+    log_action(
+        db=db,
+        user_id=admin.id,
+        action="batch.delete",
+        entity_type="batch",
+        entity_id=batch_id,
+        details={"reference": batch.reference},
+    )
+
+    db.delete(batch)
+    db.commit()
+    return None
 
 
 # --- Tickets ---
@@ -230,6 +311,16 @@ def assign_tickets(
         tickets = assign_tickets_to_vendor(db, data.ticket_ids, data.vendor_id)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+    from app.utils.audit import log_action
+    log_action(
+        db=db,
+        user_id=admin.id,
+        action="tickets.assign",
+        entity_type="user",
+        entity_id=data.vendor_id,
+        details={"count": len(tickets), "ticket_ids": data.ticket_ids},
+    )
+
     return {"message": f"{len(tickets)} tickets attribués", "count": len(tickets)}
 
 
@@ -244,6 +335,16 @@ def bulk_assign(
         tickets = bulk_assign_tickets(db, data.vendor_id, data.subscription_type_id, data.quantity)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+    from app.utils.audit import log_action
+    log_action(
+        db=db,
+        user_id=admin.id,
+        action="tickets.bulk_assign",
+        entity_type="user",
+        entity_id=data.vendor_id,
+        details={"count": len(tickets), "subscription_type_id": data.subscription_type_id},
+    )
+
     return {"message": f"{len(tickets)} tickets attribués", "count": len(tickets)}
 
 

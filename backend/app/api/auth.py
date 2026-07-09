@@ -24,6 +24,17 @@ def login(credentials: LoginRequest, db: Session = Depends(get_db)):
             detail="Nom d'utilisateur ou mot de passe incorrect",
         )
     token = create_token_for_user(user)
+
+    from app.utils.audit import log_action
+    log_action(
+        db=db,
+        user_id=user.id,
+        action="auth.login",
+        entity_type="user",
+        entity_id=user.id,
+        details={"username": user.username, "role": user.role},
+    )
+
     return LoginResponse(
         access_token=token,
         user=UserResponse.model_validate(user),
@@ -43,6 +54,17 @@ def change_password(
             detail="Mot de passe actuel incorrect",
         )
     change_user_password(db, current_user, data.new_password)
+
+    from app.utils.audit import log_action
+    log_action(
+        db=db,
+        user_id=current_user.id,
+        action="auth.change_password",
+        entity_type="user",
+        entity_id=current_user.id,
+        details={"username": current_user.username},
+    )
+
     return {"message": "Mot de passe modifié avec succès"}
 
 

@@ -30,6 +30,16 @@ def request_resupply(
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
+    from app.utils.audit import log_action
+    log_action(
+        db=db,
+        user_id=current_user.id,
+        action="resupply.request",
+        entity_type="resupply_request",
+        entity_id=req.id,
+        details={"subscription_type": req.subscription_type.name, "quantity": req.quantity},
+    )
+
     response = ResupplyRequestResponse.model_validate(req)
     response.vendor_name = current_user.full_name
     response.subscription_type_name = req.subscription_type.name
@@ -80,6 +90,16 @@ def process_request(
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+    from app.utils.audit import log_action
+    log_action(
+        db=db,
+        user_id=admin.id,
+        action=f"resupply.{data.action}",
+        entity_type="resupply_request",
+        entity_id=req.id,
+        details={"vendor_name": req.vendor.full_name, "subscription_type": req.subscription_type.name, "quantity": req.quantity, "reason": data.rejection_reason},
+    )
 
     response = ResupplyRequestResponse.model_validate(req)
     response.vendor_name = req.vendor.full_name
