@@ -11,6 +11,7 @@ import AppLayout from './components/layout/AppLayout';
 import DashboardPage from './pages/DashboardPage';
 import TicketsPage from './pages/TicketsPage';
 import VendorsPage from './pages/VendorsPage';
+import ClientsPage from './pages/ClientsPage';
 import SalesPage from './pages/SalesPage';
 import ResupplyPage from './pages/ResupplyPage';
 import ReportsPage from './pages/ReportsPage';
@@ -84,6 +85,14 @@ export default function App() {
             element={
               <AdminRoute>
                 <VendorsPage />
+              </AdminRoute>
+            }
+          />
+          <Route
+            path="clients"
+            element={
+              <AdminRoute>
+                <ClientsPage />
               </AdminRoute>
             }
           />

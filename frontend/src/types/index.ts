@@ -71,6 +71,9 @@ export interface Sale {
   ticket_code?: string;
   vendor_name?: string;
   subscription_type_name?: string;
+  subscription_duration_hours?: number;
+  is_paid: boolean;
+  paid_at: string | null;
 }
 
 export interface ResupplyRequest {

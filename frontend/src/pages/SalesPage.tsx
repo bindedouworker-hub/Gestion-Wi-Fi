@@ -23,17 +23,33 @@ export default function SalesPage() {
   // Sale form
   const [showSale, setShowSale] = useState(false);
   const [saleTypeId, setSaleTypeId] = useState('');
+  const [saleQuantity, setSaleQuantity] = useState(1);
   const [salePayment, setSalePayment] = useState('Espèces');
   const [saleClientName, setSaleClientName] = useState('');
   const [saleClientPhone, setSaleClientPhone] = useState('');
   const [selling, setSelling] = useState(false);
-  const [saleResult, setSaleResult] = useState<Sale | null>(null);
+  const [saleResult, setSaleResult] = useState<Sale[] | null>(null);
 
   // Cancel form
   const [showCancel, setShowCancel] = useState<number | null>(null);
   const [cancelReason, setCancelReason] = useState('');
+  const [cancelMarkDefective, setCancelMarkDefective] = useState(false);
 
   useEffect(() => { loadData(); }, []);
+
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setTick(t => t + 1);
+    }, 60000);
+    return () => clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
+    if (!saleTypeId) {
+      setSaleQuantity(1);
+    }
+  }, [saleTypeId]);
 
   const loadData = async () => {
     try {
@@ -53,6 +69,55 @@ export default function SalesPage() {
 
   const formatCFA = (n: number) => new Intl.NumberFormat('fr-FR').format(Math.round(n)) + ' FCFA';
 
+  const getSaleStatusBadge = (s: Sale) => {
+    if (s.is_cancelled) {
+      return <span className="badge badge-rejected">Annulée</span>;
+    }
+    if (s.payment_method === 'credit' && !s.is_paid) {
+      return <span className="badge badge-pending">À crédit</span>;
+    }
+    if (s.payment_method === 'compensation') {
+      return <span className="badge badge-defective">Dédommagement</span>;
+    }
+    if (!s.subscription_duration_hours) {
+      return <span className="badge badge-approved">Valide</span>;
+    }
+
+    const createdAt = new Date(s.created_at);
+    const expirationTime = new Date(createdAt.getTime() + s.subscription_duration_hours * 60 * 60 * 1000);
+    const now = new Date();
+    const remainingMs = expirationTime.getTime() - now.getTime();
+    const remainingHours = remainingMs / (1000 * 60 * 60);
+
+    if (remainingMs < 0) {
+      return <span className="badge badge-inactive">Expiré</span>;
+    }
+    if (remainingHours <= 8) {
+      return <span className="badge badge-pending" title={`Expire le ${expirationTime.toLocaleString('fr-FR')}`}>Presque fini</span>;
+    }
+    return <span className="badge badge-approved" title={`Expire le ${expirationTime.toLocaleString('fr-FR')}`}>Actif</span>;
+  };
+
+  const getPaymentMethodBadge = (s: Sale) => {
+    if (s.payment_method === 'cash') {
+      return <span className="badge badge-cash">Espèces</span>;
+    }
+    if (s.payment_method === 'wave') {
+      return <span className="badge badge-wave">Wave</span>;
+    }
+    if (s.payment_method === 'compensation') {
+      return <span className="badge badge-defective">Dédommagement</span>;
+    }
+    if (s.payment_method === 'credit') {
+      return (
+        <span className={`badge ${s.is_paid ? 'badge-approved' : 'badge-pending'}`}>
+          Crédit {s.is_paid ? '(Payé)' : '(Non payé)'}
+        </span>
+      );
+    }
+    return <span className="badge">{s.payment_method}</span>;
+  };
+
   const selectedWaveMethod = paymentMethods.find(m => m.name.toLowerCase().includes('wave'));
 
   const handleSell = async (e: FormEvent) => {
@@ -61,12 +126,13 @@ export default function SalesPage() {
     try {
       const res = await api.post('/api/sales/', {
         subscription_type_id: Number(saleTypeId),
-        payment_method: salePayment.toLowerCase() === 'espèces' ? 'cash' : salePayment.toLowerCase(),
+        quantity: Number(saleQuantity),
+        payment_method: salePayment.toLowerCase() === 'espèces' ? 'cash' : (salePayment.toLowerCase() === 'crédit' ? 'credit' : salePayment.toLowerCase()),
         client_name: saleClientName || null,
         client_phone: saleClientPhone || null,
       });
       setSaleResult(res.data);
-      addToast('Vente enregistrée !', 'success');
+      addToast(res.data.length > 1 ? `${res.data.length} ventes enregistrées !` : 'Vente enregistrée !', 'success');
       loadData();
     } catch (err: any) {
       addToast(err.response?.data?.detail || 'Erreur', 'error');
@@ -75,10 +141,22 @@ export default function SalesPage() {
     }
   };
 
+  const handleMarkPaid = async (saleId: number) => {
+    if (!window.confirm('Voulez-vous marquer cette vente à crédit comme payée ?')) return;
+    try {
+      await api.post(`/api/sales/${saleId}/mark-paid`);
+      addToast('Crédit encaissé !', 'success');
+      loadData();
+    } catch (err: any) {
+      addToast(err.response?.data?.detail || 'Erreur', 'error');
+    }
+  };
+
   const closeSaleModal = () => {
     setShowSale(false);
     setSaleResult(null);
     setSaleTypeId('');
+    setSaleQuantity(1);
     setSalePayment('Espèces');
     setSaleClientName('');
     setSaleClientPhone('');
@@ -88,10 +166,21 @@ export default function SalesPage() {
     e.preventDefault();
     if (!showCancel) return;
     try {
-      await api.post(`/api/sales/${showCancel}/cancel`, { reason: cancelReason });
-      addToast('Vente annulée', 'success');
+      const res = await api.post(`/api/sales/${showCancel}/cancel`, {
+        reason: cancelReason,
+        mark_defective: cancelMarkDefective,
+      });
+      
+      const newCode = res.data.replacement_ticket_code;
+      if (newCode) {
+        addToast(`Vente annulée ! Nouveau code Wi-Fi attribué : ${newCode}`, 'success');
+      } else {
+        addToast('Vente annulée', 'success');
+      }
+      
       setShowCancel(null);
       setCancelReason('');
+      setCancelMarkDefective(false);
       loadData();
     } catch (err: any) {
       addToast(err.response?.data?.detail || 'Erreur', 'error');
@@ -112,19 +201,80 @@ export default function SalesPage() {
 
       {/* Quick stock overview */}
       <div className="stats-grid">
-        {stockSummary.filter(s => s.assigned > 0).map((s) => (
-          <div key={s.subscription_type.id} className="stat-card">
-            <div className="stat-icon blue">
-              <ShoppingCart size={20} />
-            </div>
-            <div className="stat-info">
-              <h3>{s.subscription_type.name}</h3>
-              <div className="stat-value">{s.assigned}</div>
-              <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>tickets disponibles</span>
+        {(() => {
+          const totalOutstandingCredit = sales
+            .filter(s => s.payment_method === 'credit' && !s.is_paid && !s.is_cancelled)
+            .reduce((sum, s) => sum + s.amount, 0);
+
+          return (
+            <>
+              {stockSummary.filter(s => (isAdmin ? s.available : s.assigned) > 0).map((s) => (
+                <div key={s.subscription_type.id} className="stat-card">
+                  <div className="stat-icon blue">
+                    <ShoppingCart size={20} />
+                  </div>
+                  <div className="stat-info">
+                    <h3>{s.subscription_type.name}</h3>
+                    <div className="stat-value">{isAdmin ? s.available : s.assigned}</div>
+                    <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>tickets disponibles</span>
+                  </div>
+                </div>
+              ))}
+              {isAdmin && totalOutstandingCredit > 0 && (
+                <div className="stat-card">
+                  <div className="stat-icon red" style={{ background: 'rgba(239, 68, 68, 0.1)', color: 'var(--danger)' }}>
+                    <ShoppingCart size={20} />
+                  </div>
+                  <div className="stat-info">
+                    <h3>Crédits en attente</h3>
+                    <div className="stat-value" style={{ color: 'var(--danger)' }}>{formatCFA(totalOutstandingCredit)}</div>
+                    <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>à encaisser</span>
+                  </div>
+                </div>
+              )}
+            </>
+          );
+        })()}
+      </div>
+
+      {/* Alert section for clients to follow up */}
+      {(() => {
+        const expiringSales = sales.filter(s => {
+          if (s.is_cancelled || !s.subscription_duration_hours || !s.client_phone) return false;
+          const expirationTime = new Date(new Date(s.created_at).getTime() + s.subscription_duration_hours * 60 * 60 * 1000);
+          const remainingMs = expirationTime.getTime() - new Date().getTime();
+          const remainingHours = remainingMs / (1000 * 60 * 60);
+          return remainingHours > 0 && remainingHours <= 8;
+        });
+
+        if (expiringSales.length === 0) return null;
+
+        return (
+          <div className="card" style={{ background: 'rgba(245, 158, 11, 0.05)', border: '1px solid var(--warning)', marginBottom: '24px' }}>
+            <h4 style={{ color: 'var(--warning)', margin: '0 0 12px 0', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span>⚠️</span> Clients à relancer (tickets expirant dans moins de 8h)
+            </h4>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              {expiringSales.map(s => {
+                const expirationTime = new Date(new Date(s.created_at).getTime() + s.subscription_duration_hours * 60 * 60 * 1000);
+                const remainingHours = Math.max(0, (expirationTime.getTime() - new Date().getTime()) / (1000 * 60 * 60));
+                const mins = Math.round((remainingHours % 1) * 60);
+                const hoursText = Math.floor(remainingHours) > 0 ? `${Math.floor(remainingHours)}h ` : '';
+                return (
+                  <div key={s.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', background: 'rgba(255,255,255,0.02)', borderRadius: '4px', border: '1px solid rgba(245, 158, 11, 0.1)' }}>
+                    <div>
+                      <strong>{s.client_name || 'Client sans nom'}</strong> (Tél: <span style={{ fontFamily: 'monospace' }}>{s.client_phone}</span>) — {s.subscription_type_name}
+                    </div>
+                    <div style={{ color: 'var(--warning)', fontSize: '0.875rem', fontWeight: 600 }}>
+                      Reste {hoursText}{mins}min (expire à {expirationTime.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })})
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </div>
-        ))}
-      </div>
+        );
+      })()}
 
       {/* Sales Table */}
       <div className="data-table-container">
@@ -156,20 +306,21 @@ export default function SalesPage() {
                   <td>{s.subscription_type_name}</td>
                   <td>{s.client_name || '—'}</td>
                   <td>
-                    <span className={`badge ${s.payment_method === 'cash' ? 'badge-cash' : 'badge-wave'}`}>
-                      {s.payment_method === 'cash' ? 'Espèces' : 'Wave'}
-                    </span>
+                    {getPaymentMethodBadge(s)}
                   </td>
                   <td style={{ fontWeight: 600 }}>{formatCFA(s.amount)}</td>
                   {isAdmin && <td>{s.vendor_name}</td>}
                   <td>{new Date(s.created_at).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</td>
                   <td>
-                    <span className={`badge ${s.is_cancelled ? 'badge-rejected' : 'badge-approved'}`}>
-                      {s.is_cancelled ? 'Annulée' : 'Valide'}
-                    </span>
+                    {getSaleStatusBadge(s)}
                   </td>
                   {isAdmin && (
                     <td>
+                      {!s.is_cancelled && s.payment_method === 'credit' && !s.is_paid && (
+                        <button className="btn btn-ghost btn-sm" style={{ color: 'var(--success)', marginRight: '8px' }} onClick={() => handleMarkPaid(s.id)}>
+                          Encaisser
+                        </button>
+                      )}
                       {!s.is_cancelled && (
                         <button className="btn btn-ghost btn-sm" style={{ color: 'var(--danger)' }} onClick={() => { setShowCancel(s.id); setCancelReason(''); }}>
                           Annuler
@@ -199,79 +350,146 @@ export default function SalesPage() {
               <button className="btn btn-ghost btn-icon" onClick={closeSaleModal}><X size={18} /></button>
             </div>
 
-            {saleResult ? (
-              <div style={{ textAlign: 'center', padding: '16px 0' }}>
-                <div style={{ fontSize: '3rem', marginBottom: '16px' }}>🎉</div>
-                <h4 style={{ fontSize: '1.1rem', marginBottom: '8px' }}>Vente #{saleResult.id} confirmée</h4>
-                <div className="card" style={{ textAlign: 'left', marginTop: '16px' }}>
-                  <p><strong>Code Wi-Fi :</strong> <span style={{ fontFamily: 'monospace', fontSize: '1.1rem', color: 'var(--accent-400)' }}>{saleResult.ticket_code}</span></p>
-                  <p><strong>Type :</strong> {saleResult.subscription_type_name}</p>
-                  <p><strong>Montant :</strong> {formatCFA(saleResult.amount)}</p>
-                  <p><strong>Paiement :</strong> {saleResult.payment_method === 'cash' ? 'Espèces' : 'Wave'}</p>
-                </div>
-                <div className="modal-footer" style={{ justifyContent: 'center' }}>
-                  <button className="btn btn-primary" onClick={closeSaleModal}>Fermer</button>
-                </div>
-              </div>
-            ) : (
-              <form onSubmit={handleSell}>
-                <div className="form-group">
-                  <label className="form-label">Type d'abonnement *</label>
-                  <select className="form-select" required value={saleTypeId} onChange={(e) => setSaleTypeId(e.target.value)}>
-                    <option value="">Sélectionner...</option>
-                    {subTypes.filter(t => t.is_active).map(t => {
-                      const stock = stockSummary.find(s => s.subscription_type.id === t.id);
-                      return (
-                        <option key={t.id} value={t.id} disabled={!stock || stock.assigned === 0}>
-                          {t.name} — {t.price} FCFA ({stock?.assigned || 0} dispo)
-                        </option>
-                      );
-                    })}
-                  </select>
-                </div>
-                <div className="form-group">
-                  <label className="form-label">Mode de paiement *</label>
-                  <select className="form-select" value={salePayment} onChange={(e) => setSalePayment(e.target.value)}>
-                    {paymentMethods.map(m => (
-                      <option key={m.id} value={m.name}>{m.name}</option>
-                    ))}
-                  </select>
-                </div>
+            {(() => {
+              const selectedType = subTypes.find(t => t.id === Number(saleTypeId));
+              const stock = stockSummary.find(s => s.subscription_type.id === Number(saleTypeId));
+              const availableCount = selectedType ? (isAdmin ? (stock?.available || 0) : (stock?.assigned || 0)) : 0;
 
-                {/* Wave QR display */}
-                {salePayment.toLowerCase().includes('wave') && selectedWaveMethod && (
-                  <div className="wave-qr-container">
-                    {selectedWaveMethod.wave_qr_image_path && (
-                      <img src={`${API_BASE_URL}/${selectedWaveMethod.wave_qr_image_path}`} alt="QR Code Wave" />
-                    )}
-                    {selectedWaveMethod.wave_merchant_number && (
-                      <>
-                        <div className="wave-merchant-label">Numéro Marchand Wave</div>
-                        <div className="wave-merchant">{selectedWaveMethod.wave_merchant_number}</div>
-                      </>
-                    )}
-                    {!selectedWaveMethod.wave_qr_image_path && !selectedWaveMethod.wave_merchant_number && (
-                      <p style={{ color: '#64748b' }}>QR code et numéro Wave non configurés. Allez dans Paramètres.</p>
-                    )}
+              return saleResult ? (
+                <div style={{ textAlign: 'center', padding: '16px 0' }}>
+                  <div style={{ fontSize: '3rem', marginBottom: '16px' }}>🎉</div>
+                  <h4 style={{ fontSize: '1.1rem', marginBottom: '8px' }}>
+                    {saleResult.length > 1 ? `${saleResult.length} ventes confirmées` : `Vente #${saleResult[0].id} confirmée`}
+                  </h4>
+                  <div className="card" style={{ textAlign: 'left', marginTop: '16px' }}>
+                    <p><strong>Code(s) Wi-Fi :</strong></p>
+                    <div style={{
+                      maxHeight: '120px',
+                      overflowY: 'auto',
+                      background: 'rgba(0,0,0,0.2)',
+                      padding: '8px 12px',
+                      borderRadius: '6px',
+                      fontFamily: 'monospace',
+                      fontSize: '1.1rem',
+                      color: 'var(--accent-400)',
+                      display: 'flex',
+                      flexWrap: 'wrap',
+                      gap: '8px',
+                      marginBottom: '12px',
+                      border: '1px solid var(--border)'
+                    }}>
+                      {saleResult.map(s => (
+                        <span key={s.id} style={{ background: 'rgba(255,255,255,0.05)', padding: '2px 8px', borderRadius: '4px', border: '1px solid rgba(255,255,255,0.1)' }}>
+                          {s.ticket_code}
+                        </span>
+                      ))}
+                    </div>
+                    <p><strong>Type :</strong> {saleResult[0].subscription_type_name}</p>
+                    <p><strong>Montant Total :</strong> {formatCFA(saleResult.reduce((acc, s) => acc + s.amount, 0))}</p>
+                    <p><strong>Paiement :</strong> {saleResult[0].payment_method === 'cash' ? 'Espèces' : 'Wave'}</p>
                   </div>
-                )}
+                  <div className="modal-footer" style={{ justifyContent: 'center' }}>
+                    <button className="btn btn-primary" onClick={closeSaleModal}>Fermer</button>
+                  </div>
+                </div>
+              ) : (
+                <form onSubmit={handleSell}>
+                  <div className="form-group">
+                    <label className="form-label">Type d'abonnement *</label>
+                    <select className="form-select" required value={saleTypeId} onChange={(e) => setSaleTypeId(e.target.value)}>
+                      <option value="">Sélectionner...</option>
+                      {subTypes.filter(t => t.is_active).map(t => {
+                        const stock = stockSummary.find(s => s.subscription_type.id === t.id);
+                        const count = isAdmin ? (stock?.available || 0) : (stock?.assigned || 0);
+                        return (
+                          <option key={t.id} value={t.id} disabled={count === 0}>
+                            {t.name} — {t.price} FCFA ({count} dispo)
+                          </option>
+                        );
+                      })}
+                    </select>
+                  </div>
 
-                <div className="form-group">
-                  <label className="form-label">Nom du client (optionnel)</label>
-                  <input className="form-input" value={saleClientName} onChange={(e) => setSaleClientName(e.target.value)} placeholder="Nom du client" />
-                </div>
-                <div className="form-group">
-                  <label className="form-label">Téléphone du client (optionnel)</label>
-                  <input className="form-input" value={saleClientPhone} onChange={(e) => setSaleClientPhone(e.target.value)} placeholder="Numéro de téléphone" />
-                </div>
-                <div className="modal-footer">
-                  <button type="button" className="btn btn-ghost" onClick={closeSaleModal}>Annuler</button>
-                  <button type="submit" className="btn btn-accent" disabled={selling}>
-                    {selling ? 'Vente...' : 'Valider la vente'}
-                  </button>
-                </div>
-              </form>
-            )}
+                  {saleTypeId && (
+                    <>
+                      <div className="form-group">
+                        <label className="form-label">Quantité *</label>
+                        <input
+                          type="number"
+                          className="form-input"
+                          min={1}
+                          max={availableCount}
+                          required
+                          value={saleQuantity}
+                          onChange={(e) => {
+                            const val = Math.max(1, Math.min(availableCount, Number(e.target.value)));
+                            setSaleQuantity(val);
+                          }}
+                        />
+                        <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '4px', display: 'block' }}>
+                          Les tickets les plus anciens seront automatiquement sélectionnés (FIFO).
+                        </span>
+                      </div>
+                    </>
+                  )}
+
+                  <div className="form-group">
+                    <label className="form-label">Mode de paiement *</label>
+                    <select className="form-select" value={salePayment} onChange={(e) => setSalePayment(e.target.value)}>
+                      {paymentMethods.map(m => (
+                        <option key={m.id} value={m.name}>{m.name}</option>
+                      ))}
+                      {isAdmin && (
+                        <option value="compensation">Dédommagement (Gratuit)</option>
+                      )}
+                    </select>
+                  </div>
+
+                  {/* Wave QR display */}
+                  {salePayment.toLowerCase().includes('wave') && selectedWaveMethod && (
+                    <div className="wave-qr-container">
+                      {selectedWaveMethod.wave_qr_image_path && (
+                        <img src={`${API_BASE_URL}/${selectedWaveMethod.wave_qr_image_path}`} alt="QR Code Wave" />
+                      )}
+                      {selectedWaveMethod.wave_merchant_number && (
+                        <>
+                          <div className="wave-merchant-label">Numéro Marchand Wave</div>
+                          <div className="wave-merchant">{selectedWaveMethod.wave_merchant_number}</div>
+                        </>
+                      )}
+                      {!selectedWaveMethod.wave_qr_image_path && !selectedWaveMethod.wave_merchant_number && (
+                        <p style={{ color: '#64748b' }}>QR code et numéro Wave non configurés. Allez dans Paramètres.</p>
+                      )}
+                    </div>
+                  )}
+
+                  <div className="form-group">
+                    <label className="form-label">Nom du client (optionnel)</label>
+                    <input className="form-input" value={saleClientName} onChange={(e) => setSaleClientName(e.target.value)} placeholder="Nom du client (optionnel)" />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Téléphone du client *</label>
+                    <input
+                      type="text"
+                      className="form-input"
+                      required
+                      value={saleClientPhone}
+                      onChange={(e) => setSaleClientPhone(e.target.value)}
+                      placeholder="Ex: 0707070707"
+                      pattern="^\+?[0-9\s\-()]+$"
+                      minLength={8}
+                      title="Veuillez saisir un numéro de téléphone valide (chiffres, espaces, tirets ou parenthèses, min. 8 caractères)"
+                    />
+                  </div>
+                  <div className="modal-footer">
+                    <button type="button" className="btn btn-ghost" onClick={closeSaleModal}>Annuler</button>
+                    <button type="submit" className="btn btn-accent" disabled={selling}>
+                      {selling ? 'Vente...' : 'Valider la vente'}
+                    </button>
+                  </div>
+                </form>
+              );
+            })()}
           </div>
         </div>
       )}
@@ -288,6 +506,18 @@ export default function SalesPage() {
               <div className="form-group">
                 <label className="form-label">Motif d'annulation *</label>
                 <textarea className="form-textarea" required minLength={5} value={cancelReason} onChange={(e) => setCancelReason(e.target.value)} placeholder="Expliquez la raison de l'annulation..." />
+              </div>
+              <div className="form-group" style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '12px', marginBottom: '16px' }}>
+                <input
+                  type="checkbox"
+                  id="markDefective"
+                  checked={cancelMarkDefective}
+                  onChange={(e) => setCancelMarkDefective(e.target.checked)}
+                  style={{ cursor: 'pointer', width: '16px', height: '16px' }}
+                />
+                <label htmlFor="markDefective" style={{ cursor: 'pointer', fontSize: '0.9rem', userSelect: 'none' }}>
+                  Marquer le ticket comme défectueux (ne sera plus vendu)
+                </label>
               </div>
               <div className="modal-footer">
                 <button type="button" className="btn btn-ghost" onClick={() => setShowCancel(null)}>Retour</button>

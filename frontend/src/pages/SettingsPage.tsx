@@ -32,7 +32,7 @@ export default function SettingsPage() {
   // Subscription type form
   const [showST, setShowST] = useState(false);
   const [stName, setStName] = useState('');
-  const [stHours, setStHours] = useState('');
+  const [stDays, setStDays] = useState('');
   const [stPrice, setStPrice] = useState('');
   const [editStId, setEditStId] = useState<number | null>(null);
 
@@ -123,21 +123,22 @@ export default function SettingsPage() {
   const handleSaveST = async (e: FormEvent) => {
     e.preventDefault();
     try {
+      const durationHours = Math.round(Number(stDays) * 24);
       if (editStId) {
         await api.put(`/api/tickets/subscription-types/${editStId}`, {
           name: stName,
-          duration_hours: Number(stHours),
+          duration_hours: durationHours,
           price: Number(stPrice),
         });
       } else {
         await api.post('/api/tickets/subscription-types', {
           name: stName,
-          duration_hours: Number(stHours),
+          duration_hours: durationHours,
           price: Number(stPrice),
         });
       }
       addToast(editStId ? 'Type modifié' : 'Type ajouté', 'success');
-      setShowST(false); setStName(''); setStHours(''); setStPrice(''); setEditStId(null);
+      setShowST(false); setStName(''); setStDays(''); setStPrice(''); setEditStId(null);
       loadData();
     } catch (err: any) {
       addToast(err.response?.data?.detail || 'Erreur', 'error');
@@ -293,7 +294,7 @@ export default function SettingsPage() {
               <h3 style={{ fontWeight: 700, display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <Wifi size={18} /> Types d'abonnement
               </h3>
-              <button className="btn btn-ghost btn-sm" onClick={() => { setEditStId(null); setStName(''); setStHours(''); setStPrice(''); setShowST(true); }}>
+              <button className="btn btn-ghost btn-sm" onClick={() => { setEditStId(null); setStName(''); setStDays(''); setStPrice(''); setShowST(true); }}>
                 <Plus size={14} /> Ajouter
               </button>
             </div>
@@ -308,12 +309,12 @@ export default function SettingsPage() {
                   <div>
                     <span style={{ fontWeight: 600 }}>{st.name}</span>
                     <span className="text-muted text-sm" style={{ marginLeft: '8px' }}>
-                      {st.duration_hours}h — {new Intl.NumberFormat('fr-FR').format(st.price)} FCFA
+                      {st.duration_hours % 24 === 0 ? `${st.duration_hours / 24} jour(s)` : `${st.duration_hours}h`} — {new Intl.NumberFormat('fr-FR').format(st.price)} FCFA
                     </span>
                   </div>
                   <div className="flex gap-2">
                     <button className="btn btn-ghost btn-sm" onClick={() => {
-                      setEditStId(st.id); setStName(st.name); setStHours(String(st.duration_hours)); setStPrice(String(st.price)); setShowST(true);
+                      setEditStId(st.id); setStName(st.name); setStDays(String(st.duration_hours / 24)); setStPrice(String(st.price)); setShowST(true);
                     }}>
                       <Edit size={14} />
                     </button>
@@ -413,8 +414,8 @@ export default function SettingsPage() {
                 <input className="form-input" required value={stName} onChange={(e) => setStName(e.target.value)} placeholder="ex: 1 Heure, 24 Heures..." />
               </div>
               <div className="form-group">
-                <label className="form-label">Durée (heures) *</label>
-                <input type="number" className="form-input" required min={1} value={stHours} onChange={(e) => setStHours(e.target.value)} />
+                <label className="form-label">Durée (jours) *</label>
+                <input type="number" step="any" className="form-input" required min={0.01} value={stDays} onChange={(e) => setStDays(e.target.value)} placeholder="ex: 1, 7, 30..." />
               </div>
               <div className="form-group">
                 <label className="form-label">Prix (FCFA) *</label>

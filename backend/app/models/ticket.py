@@ -13,6 +13,7 @@ class TicketStatus(str, enum.Enum):
     AVAILABLE = "available"
     ASSIGNED = "assigned"
     SOLD = "sold"
+    DEFECTIVE = "defective"
 
 
 class Ticket(Base):

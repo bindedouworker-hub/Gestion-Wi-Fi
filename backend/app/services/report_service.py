@@ -172,9 +172,11 @@ def generate_excel_report(sales_data: list[dict], title: str) -> BytesIO:
             cell.alignment = Alignment(horizontal="center")
 
     # Auto-width
+    from openpyxl.utils import get_column_letter
     for col in ws.columns:
         max_length = max(len(str(cell.value or "")) for cell in col)
-        ws.column_dimensions[col[0].column_letter].width = min(max_length + 4, 30)
+        col_letter = get_column_letter(col[0].column)
+        ws.column_dimensions[col_letter].width = min(max_length + 4, 30)
 
     buffer = BytesIO()
     wb.save(buffer)

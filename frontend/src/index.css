@@ -608,6 +608,7 @@ a:hover {
 .badge-inactive { background: rgba(239, 68, 68, 0.15); color: var(--danger); }
 .badge-cash { background: rgba(34, 197, 94, 0.15); color: var(--success); }
 .badge-wave { background: rgba(59, 125, 243, 0.15); color: var(--info); }
+.badge-defective { background: rgba(239, 68, 68, 0.15); color: var(--danger); }
 
 /* ============================================================
    Modal / Dialog

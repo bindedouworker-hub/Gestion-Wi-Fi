@@ -38,7 +38,7 @@ def seed_initial_data():
             print(f"✅ Compte admin créé: {settings.INITIAL_ADMIN_USERNAME}")
 
         # Default payment methods
-        for name in ["Espèces", "Wave"]:
+        for name in ["Espèces", "Wave", "Crédit"]:
             existing = db.query(PaymentMethod).filter(PaymentMethod.name == name).first()
             if not existing:
                 method = PaymentMethod(name=name, is_active=True)
@@ -47,8 +47,6 @@ def seed_initial_data():
 
         # Default subscription types
         defaults = [
-            ("1 Heure", 1, 200),
-            ("3 Heures", 3, 500),
             ("24 Heures", 24, 1000),
             ("7 Jours", 168, 3000),
             ("30 Jours", 720, 10000),
@@ -59,6 +57,16 @@ def seed_initial_data():
                 st = SubscriptionType(name=name, duration_hours=hours, price=price)
                 db.add(st)
                 print(f"✅ Type d'abonnement créé: {name} — {price} FCFA")
+
+        # Cleanup unused default types
+        from app.models.ticket import Ticket
+        for name in ["1 Heure", "3 Heures"]:
+            st = db.query(SubscriptionType).filter(SubscriptionType.name == name).first()
+            if st:
+                has_tickets = db.query(Ticket).filter(Ticket.subscription_type_id == st.id).first() is not None
+                if not has_tickets:
+                    db.delete(st)
+                    print(f"🧹 Type d'abonnement nettoyé: {name}")
 
         db.commit()
     finally:

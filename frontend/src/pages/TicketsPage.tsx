@@ -143,6 +143,7 @@ export default function TicketsPage() {
     available: 'Disponible',
     assigned: 'Attribué',
     sold: 'Vendu',
+    defective: 'Défectueux',
   };
 
   return (

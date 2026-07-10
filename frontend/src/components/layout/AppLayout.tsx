@@ -6,7 +6,7 @@ import { useState } from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard, Ticket, Users, ShoppingCart, PackagePlus,
-  FileBarChart, Settings, LogOut, Menu, X, Wifi, ChevronDown,
+  FileBarChart, Settings, LogOut, Menu, X, Wifi, ChevronDown, Contact,
 } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
 
@@ -24,7 +24,10 @@ export default function AppLayout() {
   const navItems = [
     { to: '/', icon: LayoutDashboard, label: 'Tableau de bord' },
     { to: '/tickets', icon: Ticket, label: 'Tickets', admin: false },
-    ...(isAdmin ? [{ to: '/vendors', icon: Users, label: 'Vendeurs', admin: true }] : []),
+    ...(isAdmin ? [
+      { to: '/vendors', icon: Users, label: 'Vendeurs', admin: true },
+      { to: '/clients', icon: Contact, label: 'Clients', admin: true }
+    ] : []),
     { to: '/sales', icon: ShoppingCart, label: 'Ventes', admin: false },
     { to: '/resupply', icon: PackagePlus, label: 'Réappro.', admin: false },
     { to: '/reports', icon: FileBarChart, label: 'Rapports', admin: false },

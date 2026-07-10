@@ -25,6 +25,8 @@ class Sale(Base):
     cancelled_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
     cancel_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
     cancelled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    is_paid: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    paid_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     # Relationships
     ticket = relationship("Ticket", back_populates="sale")
